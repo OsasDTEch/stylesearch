@@ -1,0 +1,15 @@
+[project]
+name = "madam-style-search"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "fastembed",
+    "rank-bm25",
+    "numpy",
+    "scikit-learn",
+]
+
+[project.scripts]
+start = "app:app"

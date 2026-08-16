@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+fastembed
+rank_bm25
+numpy
+scikit-learn
