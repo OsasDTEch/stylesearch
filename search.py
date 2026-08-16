@@ -83,7 +83,8 @@ def extract_facets(query: str) -> dict:
 
     if re.search(r"\bno heat\b|\bheat free\b|without heat|heatless", q):
         f["no_heat"] = True
-    if re.search(r"low manipulation|low maintenance|don'?t (want|have) to (touch|do)|lazy|minimal effort|low effort", q):
+    if re.search(r"low manipulation|low maintenance|don'?t (want|have) to (touch|do)|lazy|minimal effort|low effort"
+                 r"|won'?t have to (think|worry|touch)|set (it )?and forget|hands? off|leave (it )?alone", q):
         f["low_manipulation"] = True
     if re.search(r"\bswim|pool|beach|water\b", q):
         f["swim"] = True
@@ -102,10 +103,40 @@ def extract_facets(query: str) -> dict:
     if "occasions" in f:
         f["occasions"] = sorted(f["occasions"])
 
+    # numeric duration: "for 6 weeks", "lasts 2 months"
     m = re.search(r"(?:last|lasts|for)\s+(?:about\s+)?(\d+)\s*(week|weeks|month|months)", q)
     if m:
         n = int(m.group(1))
         f["min_weeks"] = n * 4 if "month" in m.group(2) else n
+
+    # written-out numbers: "two months", "a couple of months", "next two months"
+    _WORD_TO_N = {
+        "a": 1, "one": 1, "two": 2, "three": 3, "four": 4,
+        "five": 5, "six": 6, "seven": 7, "eight": 8,
+        "couple": 2, "few": 3, "several": 4,
+    }
+    m2 = re.search(
+        r"(a\s+couple\s+of|a\s+few|several|a\s+|one|two|three|four|five|six|seven|eight)\s*"
+        r"(week|weeks|month|months)",
+        q,
+    )
+    if m2 and "min_weeks" not in f:
+        raw = m2.group(1).strip().replace("a couple of", "couple").replace("a few", "few").replace("a", "a")
+        # normalise multi-word tokens
+        raw = re.sub(r"\s+", " ", raw).strip()
+        word = raw.split()[-1]  # last token: "couple", "few", "two" etc.
+        n = _WORD_TO_N.get(word, 1)
+        f["min_weeks"] = n * 4 if "month" in m2.group(2) else n
+
+    # vague long-duration intent: "a while", "ages", "long time", "won't have to think about"
+    if "min_weeks" not in f and re.search(
+        r"for a while|for ages|long time|long.lasting|don'?t want to (redo|redo)|"
+        r"won'?t have to (think|touch|redo|worry)|traveling|on vacation|on holiday|"
+        r"set (it )?and forget|won'?t (need to|have to) (do|touch|think)",
+        q,
+    ):
+        f.setdefault("min_weeks", 6)  # implied: at least 6 weeks
+        f.setdefault("low_manipulation", True)
 
     return f
 
@@ -227,10 +258,10 @@ class StyleSearch:
 
         if wk := f.get("min_weeks"):
             if s["lasts_weeks"] >= wk:
-                score += 0.5
+                score += 0.8
                 hits.append(f"lasts {s['lasts_weeks']} weeks")
             else:
-                penalty += 0.8
+                penalty += 1.2
 
         return score - penalty, hits
 
